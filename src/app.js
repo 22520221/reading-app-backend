@@ -5,6 +5,7 @@ const { pool, poolConnect } = require("./config/database");
 
 const categoryRoutes = require("./routes/categoryRoutes");
 const bookRoutes = require("./routes/bookRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 const app = express();
 
@@ -47,5 +48,6 @@ app.get("/api/health/db", async (req, res) => {
 // Đăng ký API Categories
 app.use("/api/categories", categoryRoutes);
 app.use("/api/books", bookRoutes);
+app.use("/api/users", userRoutes);
 
 module.exports = app;
