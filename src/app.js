@@ -4,6 +4,7 @@ const cors = require("cors");
 const { pool, poolConnect } = require("./config/database");
 
 const categoryRoutes = require("./routes/categoryRoutes");
+const bookRoutes = require("./routes/bookRoutes");
 
 const app = express();
 
@@ -45,5 +46,6 @@ app.get("/api/health/db", async (req, res) => {
 
 // Đăng ký API Categories
 app.use("/api/categories", categoryRoutes);
+app.use("/api/books", bookRoutes);
 
 module.exports = app;

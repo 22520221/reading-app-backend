@@ -1,271 +1,229 @@
 
-const { sql, pool, poolConnect } = require("../config/database");
+const categoryService = require("../services/categoryService");
 
-// GET: Lấy danh sách thể loại
-async function getAllCategories(req, res) {
+// Kiem tra ID
+const parseCategoryId = (value) => {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+// GET /api/categories
+const getAllCategories = async (req, res) => {
     try {
-        await poolConnect;
+        const categories = await categoryService.getAllCategories();
 
-        const result = await pool.request().query(`
-            SELECT CategoryID, CategoryName, Description, CreatedAt
-            FROM dbo.Categories
-            ORDER BY CategoryID DESC
-        `);
-
-        res.json({
+        return res.status(200).json({
             success: true,
-            data: result.recordset
+            data: categories
         });
     } catch (error) {
-        console.error(error.message);
-        res.status(500).json({
+        console.error("Loi getAllCategories:", error.message);
+
+        return res.status(500).json({
             success: false,
-            message: "Loi khi lay danh sach the loai."
+            message: "Loi khi lay danh sach danh muc."
         });
     }
-}
+};
 
-// GET: Lấy chi tiết một thể loại
-async function getCategoryById(req, res) {
+// GET /api/categories/:id
+const getCategoryById = async (req, res) => {
     try {
-        const id = Number(req.params.id);
+        const id = parseCategoryId(req.params.id);
 
-        if (!Number.isInteger(id) || id <= 0) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
-                message: "CategoryID khong hop le."
+                message: "CategoryID phai la so nguyen duong."
             });
         }
 
-        await poolConnect;
+        const category = await categoryService.getCategoryById(id);
 
-        const result = await pool.request()
-            .input("id", sql.Int, id)
-            .query(`
-                SELECT CategoryID, CategoryName, Description, CreatedAt
-                FROM dbo.Categories
-                WHERE CategoryID = @id
-            `);
-
-        if (result.recordset.length === 0) {
+        if (!category) {
             return res.status(404).json({
                 success: false,
-                message: "Khong tim thay the loai."
+                message: "Khong tim thay danh muc."
             });
         }
 
-        res.json({
+        return res.status(200).json({
             success: true,
-            data: result.recordset[0]
+            data: category
         });
     } catch (error) {
-        console.error(error.message);
-        res.status(500).json({
+        console.error("Loi getCategoryById:", error.message);
+
+        return res.status(500).json({
             success: false,
-            message: "Loi khi lay chi tiet the loai."
+            message: "Loi khi lay chi tiet danh muc."
         });
     }
-}
+};
 
-// POST: Thêm thể loại
-async function createCategory(req, res) {
+// POST /api/categories
+const createCategory = async (req, res) => {
     try {
         const { CategoryName, Description } = req.body;
 
         if (
             typeof CategoryName !== "string" ||
-            CategoryName.trim() === ""
+            CategoryName.trim().length === 0
         ) {
             return res.status(400).json({
                 success: false,
-                message: "CategoryName khong duoc de trong."
+                message: "CategoryName la bat buoc."
             });
         }
 
-        const name = CategoryName.trim();
-        const description =
-            typeof Description === "string" && Description.trim() !== ""
-                ? Description.trim()
-                : null;
-
-        if (name.length > 100) {
+        if (CategoryName.trim().length > 100) {
             return res.status(400).json({
                 success: false,
-                message: "Ten the loai toi da 100 ky tu."
+                message: "CategoryName khong duoc vuot qua 100 ky tu."
             });
         }
 
-        if (description && description.length > 500) {
+        if (
+            Description !== undefined &&
+            Description !== null &&
+            typeof Description !== "string"
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Mo ta toi da 500 ky tu."
+                message: "Description phai la chuoi hoac null."
             });
         }
 
-        await poolConnect;
+        const category = await categoryService.createCategory({
+            CategoryName,
+            Description
+        });
 
-        const result = await pool.request()
-            .input("CategoryName", sql.NVarChar(100), name)
-            .input("Description", sql.NVarChar(500), description)
-            .query(`
-                INSERT INTO dbo.Categories (CategoryName, Description)
-                OUTPUT
-                    INSERTED.CategoryID,
-                    INSERTED.CategoryName,
-                    INSERTED.Description,
-                    INSERTED.CreatedAt
-                VALUES (@CategoryName, @Description)
-            `);
-
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
-            message: "Them the loai thanh cong.",
-            data: result.recordset[0]
+            message: "Them danh muc thanh cong!",
+            data: category
         });
     } catch (error) {
+        console.error("Loi createCategory:", error.message);
+
         if (error.number === 2627 || error.number === 2601) {
             return res.status(409).json({
                 success: false,
-                message: "Ten the loai da ton tai."
+                message: "Danh muc da ton tai."
             });
         }
 
-        console.error(error.message);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Loi khi them the loai."
+            message: "Loi khi them danh muc."
         });
     }
-}
+};
 
-// PUT: Cập nhật thể loại
-async function updateCategory(req, res) {
+// PUT /api/categories/:id
+const updateCategory = async (req, res) => {
     try {
-        const id = Number(req.params.id);
+        const id = parseCategoryId(req.params.id);
         const { CategoryName, Description } = req.body;
 
-        if (!Number.isInteger(id) || id <= 0) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
-                message: "CategoryID khong hop le."
+                message: "CategoryID phai la so nguyen duong."
             });
         }
 
         if (
             typeof CategoryName !== "string" ||
-            CategoryName.trim() === ""
+            CategoryName.trim().length === 0 ||
+            CategoryName.trim().length > 100
         ) {
             return res.status(400).json({
                 success: false,
-                message: "CategoryName khong duoc de trong."
+                message: "CategoryName la bat buoc va toi da 100 ky tu."
             });
         }
 
-        const name = CategoryName.trim();
-        const description =
-            typeof Description === "string" && Description.trim() !== ""
-                ? Description.trim()
-                : null;
-
-        if (name.length > 100) {
+        if (
+            Description !== undefined &&
+            Description !== null &&
+            typeof Description !== "string"
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Ten the loai toi da 100 ky tu."
+                message: "Description phai la chuoi hoac null."
             });
         }
 
-        if (description && description.length > 500) {
-            return res.status(400).json({
-                success: false,
-                message: "Mo ta toi da 500 ky tu."
-            });
-        }
+        const category = await categoryService.updateCategory(id, {
+            CategoryName,
+            Description
+        });
 
-        await poolConnect;
-
-        const result = await pool.request()
-            .input("id", sql.Int, id)
-            .input("CategoryName", sql.NVarChar(100), name)
-            .input("Description", sql.NVarChar(500), description)
-            .query(`
-                UPDATE dbo.Categories
-                SET CategoryName = @CategoryName,
-                    Description = @Description
-                WHERE CategoryID = @id;
-
-                SELECT CategoryID, CategoryName, Description, CreatedAt
-                FROM dbo.Categories
-                WHERE CategoryID = @id;
-            `);
-
-        if (result.recordset.length === 0) {
+        if (!category) {
             return res.status(404).json({
                 success: false,
-                message: "Khong tim thay the loai."
+                message: "Khong tim thay danh muc de cap nhat."
             });
         }
 
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: "Cap nhat the loai thanh cong.",
-            data: result.recordset[0]
+            message: "Cap nhat danh muc thanh cong!",
+            data: category
         });
     } catch (error) {
+        console.error("Loi updateCategory:", error.message);
+
         if (error.number === 2627 || error.number === 2601) {
             return res.status(409).json({
                 success: false,
-                message: "Ten the loai da ton tai."
+                message: "Ten danh muc da ton tai."
             });
         }
 
-        console.error(error.message);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Loi khi cap nhat the loai."
+            message: "Loi khi cap nhat danh muc."
         });
     }
-}
+};
 
-// DELETE: Xóa thể loại
-async function deleteCategory(req, res) {
+// DELETE /api/categories/:id
+const deleteCategory = async (req, res) => {
     try {
-        const id = Number(req.params.id);
+        const id = parseCategoryId(req.params.id);
 
-        if (!Number.isInteger(id) || id <= 0) {
+        if (!id) {
             return res.status(400).json({
                 success: false,
-                message: "CategoryID khong hop le."
+                message: "CategoryID phai la so nguyen duong."
             });
         }
 
-        await poolConnect;
+        const deleted = await categoryService.deleteCategory(id);
 
-        const result = await pool.request()
-            .input("id", sql.Int, id)
-            .query(`
-                DELETE FROM dbo.Categories
-                WHERE CategoryID = @id
-            `);
-
-        if (result.rowsAffected[0] === 0) {
+        if (!deleted) {
             return res.status(404).json({
                 success: false,
-                message: "Khong tim thay the loai."
+                message: "Khong tim thay danh muc de xoa."
             });
         }
 
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: "Xoa the loai thanh cong."
+            message: "Xoa danh muc thanh cong!"
         });
     } catch (error) {
-        console.error(error.message);
-        res.status(500).json({
+        console.error("Loi deleteCategory:", error.message);
+
+        return res.status(500).json({
             success: false,
-            message: "Loi khi xoa the loai."
+            message: "Loi khi xoa danh muc."
         });
     }
-}
+};
 
 module.exports = {
     getAllCategories,
@@ -274,3 +232,4 @@ module.exports = {
     updateCategory,
     deleteCategory
 };
+
