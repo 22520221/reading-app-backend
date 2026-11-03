@@ -8,7 +8,7 @@ const bookRoutes = require("./routes/bookRoutes");
 const userRoutes = require("./routes/userRoutes");
 const readingHistoryRoutes = require("./routes/readingHistoryRoutes");
 const authRoutes = require("./routes/authRoutes");
-const { authenticateToken } = require("./middlewares/authMiddleware");
+const { authenticateToken, authorizeRoles } = require("./middlewares/authMiddleware");
 
 const app = express();
 
@@ -63,5 +63,29 @@ app.get("/api/auth/me", authenticateToken, (req, res) => {
     });
 });
 
+
+app.get(
+    "/api/auth/admin-test",
+    authenticateToken,
+    authorizeRoles("admin"),
+    (req, res) => {
+        res.json({
+            message: "Ban co quyen admin",
+            user: req.user
+        });
+    }
+);
+
+app.get(
+    "/api/auth/user-test",
+    authenticateToken,
+    authorizeRoles("user", "admin"),
+    (req, res) => {
+        res.json({
+            message: "Ban co quyen truy cap API nay",
+            user: req.user
+        });
+    }
+);
 
 module.exports = app;

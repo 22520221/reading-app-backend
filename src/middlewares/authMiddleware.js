@@ -36,5 +36,29 @@ function authenticateToken(req, res, next) {
         next();
     });
 }
+    
+function authorizeRoles(...allowedRoles) {
+    return (req, res, next) => {
+        // Kiem tra da xac thuc JWT chua
+        if (!req.user) {
+            return res.status(401).json({
+                message: "Vui long dang nhap"
+            });
+        }
 
-module.exports = { authenticateToken };
+        // Kiem tra vai tro
+        if (!allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({
+                message: "Ban khong co quyen truy cap"
+            });
+        }
+
+        next();
+    };
+}
+
+
+module.exports = 
+{   authenticateToken,
+    authorizeRoles
+ };
