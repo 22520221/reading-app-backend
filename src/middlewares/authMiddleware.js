@@ -57,8 +57,25 @@ function authorizeRoles(...allowedRoles) {
     };
 }
 
+function authorizeSelfOrAdmin(req, res, next) {
+    const requestedUserId = Number(req.params.id);
+    const currentUserId = Number(req.user.userId);
+
+    if (
+        req.user.role === "admin" ||
+        requestedUserId === currentUserId
+    ) {
+        return next();
+    }
+
+    return res.status(403).json({
+        success: false,
+        message: "Ban khong co quyen truy cap tai khoan nay."
+    });
+}
 
 module.exports = 
 {   authenticateToken,
-    authorizeRoles
+    authorizeRoles,
+    authorizeSelfOrAdmin
  };

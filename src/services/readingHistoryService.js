@@ -1,10 +1,21 @@
 const { sql, pool, poolConnect } = require("../config/database");
 
-// GET: Lay danh sach lich su doc sach
-const getAllReadingHistory = async () => {
+// GET: Lay danh sach lich su doc
+// userId = null: Admin xem tat ca
+// userId co gia tri: chi xem lich su cua user do
+const getAllReadingHistory = async (userId = null) => {
     await poolConnect;
 
-    const result = await pool.request().query(`
+    const request = pool.request();
+
+    let userFilter = "";
+
+    if (userId !== null) {
+        request.input("UserID", sql.Int, userId);
+        userFilter = "WHERE rh.UserID = @UserID";
+    }
+
+    const result = await request.query(`
         SELECT
             rh.HistoryID,
             rh.UserID,
@@ -18,17 +29,16 @@ const getAllReadingHistory = async () => {
             rh.CreatedAt,
             rh.UpdatedAt
         FROM dbo.ReadingHistory rh
-        INNER JOIN dbo.Users u
-            ON rh.UserID = u.UserID
-        INNER JOIN dbo.Books b
-            ON rh.BookID = b.BookID
+        INNER JOIN dbo.Users u ON rh.UserID = u.UserID
+        INNER JOIN dbo.Books b ON rh.BookID = b.BookID
+        ${userFilter}
         ORDER BY rh.LastReadAt DESC
     `);
 
     return result.recordset;
 };
 
-// GET: Lay chi tiet mot lich su doc sach
+// GET: Lay chi tiet lich su doc
 const getReadingHistoryById = async (id) => {
     await poolConnect;
 
@@ -48,39 +58,26 @@ const getReadingHistoryById = async (id) => {
                 rh.CreatedAt,
                 rh.UpdatedAt
             FROM dbo.ReadingHistory rh
-            INNER JOIN dbo.Users u
-                ON rh.UserID = u.UserID
-            INNER JOIN dbo.Books b
-                ON rh.BookID = b.BookID
+            INNER JOIN dbo.Users u ON rh.UserID = u.UserID
+            INNER JOIN dbo.Books b ON rh.BookID = b.BookID
             WHERE rh.HistoryID = @HistoryID
         `);
 
     return result.recordset[0] || null;
 };
 
-// POST: Them lich su doc sach
+// POST: Them lich su doc
 const createReadingHistory = async (history) => {
     await poolConnect;
 
     const result = await pool.request()
         .input("UserID", sql.Int, history.UserID)
         .input("BookID", sql.Int, history.BookID)
-        .input(
-            "LastReadPosition",
-            sql.BigInt,
-            history.LastReadPosition ?? 0
-        )
-        .input(
-            "ProgressPercent",
-            sql.Decimal(5, 2),
-            history.ProgressPercent ?? 0
-        )
+        .input("LastReadPosition", sql.BigInt, history.LastReadPosition ?? 0)
+        .input("ProgressPercent", sql.Decimal(5, 2), history.ProgressPercent ?? 0)
         .query(`
             INSERT INTO dbo.ReadingHistory (
-                UserID,
-                BookID,
-                LastReadPosition,
-                ProgressPercent
+                UserID, BookID, LastReadPosition, ProgressPercent
             )
             OUTPUT
                 INSERTED.HistoryID,
@@ -92,65 +89,72 @@ const createReadingHistory = async (history) => {
                 INSERTED.CreatedAt,
                 INSERTED.UpdatedAt
             VALUES (
-                @UserID,
-                @BookID,
-                @LastReadPosition,
-                @ProgressPercent
+                @UserID, @BookID, @LastReadPosition, @ProgressPercent
             )
         `);
 
     return result.recordset[0];
 };
 
-// PUT: Cap nhat vi tri va tien do doc
-const updateReadingHistory = async (id, history) => {
+// PUT: Cap nhat lich su doc
+// userId = null: Admin
+// userId co gia tri: chi cap nhat lich su cua user do
+const updateReadingHistory = async (id, history, userId = null) => {
     await poolConnect;
 
-    const result = await pool.request()
+    const request = pool.request()
         .input("HistoryID", sql.Int, id)
-        .input(
-            "LastReadPosition",
-            sql.BigInt,
-            history.LastReadPosition
-        )
-        .input(
-            "ProgressPercent",
-            sql.Decimal(5, 2),
-            history.ProgressPercent
-        )
-        .query(`
-            UPDATE dbo.ReadingHistory
-            SET
-                LastReadPosition = @LastReadPosition,
-                ProgressPercent = @ProgressPercent,
-                LastReadAt = SYSDATETIME(),
-                UpdatedAt = SYSDATETIME()
-            OUTPUT
-                INSERTED.HistoryID,
-                INSERTED.UserID,
-                INSERTED.BookID,
-                INSERTED.LastReadPosition,
-                INSERTED.ProgressPercent,
-                INSERTED.LastReadAt,
-                INSERTED.CreatedAt,
-                INSERTED.UpdatedAt
-            WHERE HistoryID = @HistoryID
-        `);
+        .input("LastReadPosition", sql.BigInt, history.LastReadPosition)
+        .input("ProgressPercent", sql.Decimal(5, 2), history.ProgressPercent);
+
+    let userFilter = "";
+
+    if (userId !== null) {
+        request.input("UserID", sql.Int, userId);
+        userFilter = "AND UserID = @UserID";
+    }
+
+    const result = await request.query(`
+        UPDATE dbo.ReadingHistory
+        SET
+            LastReadPosition = @LastReadPosition,
+            ProgressPercent = @ProgressPercent,
+            LastReadAt = SYSDATETIME(),
+            UpdatedAt = SYSDATETIME()
+        OUTPUT
+            INSERTED.HistoryID,
+            INSERTED.UserID,
+            INSERTED.BookID,
+            INSERTED.LastReadPosition,
+            INSERTED.ProgressPercent,
+            INSERTED.LastReadAt,
+            INSERTED.CreatedAt,
+            INSERTED.UpdatedAt
+        WHERE HistoryID = @HistoryID ${userFilter}
+    `);
 
     return result.recordset[0] || null;
 };
 
-// DELETE: Xoa lich su doc sach
-const deleteReadingHistory = async (id) => {
+// DELETE: Xoa lich su doc
+const deleteReadingHistory = async (id, userId = null) => {
     await poolConnect;
 
-    const result = await pool.request()
-        .input("HistoryID", sql.Int, id)
-        .query(`
-            DELETE FROM dbo.ReadingHistory
-            OUTPUT DELETED.HistoryID
-            WHERE HistoryID = @HistoryID
-        `);
+    const request = pool.request()
+        .input("HistoryID", sql.Int, id);
+
+    let userFilter = "";
+
+    if (userId !== null) {
+        request.input("UserID", sql.Int, userId);
+        userFilter = "AND UserID = @UserID";
+    }
+
+    const result = await request.query(`
+        DELETE FROM dbo.ReadingHistory
+        OUTPUT DELETED.HistoryID
+        WHERE HistoryID = @HistoryID ${userFilter}
+    `);
 
     return result.recordset.length > 0;
 };

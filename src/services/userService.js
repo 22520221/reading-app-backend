@@ -123,6 +123,50 @@ const updateUser = async (id, user) => {
     return result.recordset[0] || null;
 };
 
+// PUT: User tu cap nhat thong tin ca nhan
+const updateUserProfile = async (id, user) => {
+    await poolConnect;
+
+    const request = pool.request()
+        .input("UserID", sql.Int, id)
+        .input("FullName", sql.NVarChar(150), user.FullName.trim())
+        .input("Email", sql.NVarChar(255), user.Email.trim().toLowerCase());
+
+    let passwordSql = "";
+
+    if (user.Password) {
+        const passwordHash = await bcrypt.hash(user.Password, 10);
+
+        request.input(
+            "PasswordHash",
+            sql.NVarChar(255),
+            passwordHash
+        );
+
+        passwordSql = ", PasswordHash = @PasswordHash";
+    }
+
+    const result = await request.query(`
+        UPDATE dbo.Users
+        SET
+            FullName = @FullName,
+            Email = @Email
+            ${passwordSql},
+            UpdatedAt = SYSDATETIME()
+        OUTPUT
+            INSERTED.UserID,
+            INSERTED.FullName,
+            INSERTED.Email,
+            INSERTED.Role,
+            INSERTED.IsActive,
+            INSERTED.CreatedAt,
+            INSERTED.UpdatedAt
+        WHERE UserID = @UserID
+    `);
+
+    return result.recordset[0] || null;
+};
+
 // DELETE: Xoa nguoi dung
 const deleteUser = async (id) => {
     await poolConnect;
@@ -143,5 +187,6 @@ module.exports = {
     getUserById,
     createUser,
     updateUser,
+    updateUserProfile,
     deleteUser
 };

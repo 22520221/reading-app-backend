@@ -154,6 +154,7 @@ const createUser = async (req, res) => {
 };
 
 // PUT /api/users/:id
+// PUT /api/users/:id
 const updateUser = async (req, res) => {
     try {
         if (!isValidId(req.params.id)) {
@@ -163,8 +164,10 @@ const updateUser = async (req, res) => {
             });
         }
 
-        const { FullName, Email, Password, Role, IsActive } = req.body;
+        const userId = Number(req.params.id);
+        const { FullName, Email, Password } = req.body;
 
+        // Kiem tra thong tin chung
         if (
             typeof FullName !== "string" ||
             !FullName.trim() ||
@@ -187,26 +190,14 @@ const updateUser = async (req, res) => {
             });
         }
 
-        if (!isValidRole(Role)) {
-            return res.status(400).json({
-                success: false,
-                message: "Role chi duoc la admin hoac user."
-            });
-        }
-
-        if (typeof IsActive !== "boolean") {
-            return res.status(400).json({
-                success: false,
-                message: "IsActive phai la true hoac false."
-            });
-        }
-
         if (
             Password !== undefined &&
             Password !== "" &&
-            (typeof Password !== "string" ||
+            (
+                typeof Password !== "string" ||
                 Password.length < 8 ||
-                Password.length > 72)
+                Password.length > 72
+            )
         ) {
             return res.status(400).json({
                 success: false,
@@ -214,10 +205,54 @@ const updateUser = async (req, res) => {
             });
         }
 
-        const user = await userService.updateUser(
-            Number(req.params.id),
-            { FullName, Email, Password, Role, IsActive }
-        );
+        let user;
+
+        // USER: chi duoc cap nhat thong tin ca nhan
+        if (req.user.role === "user") {
+
+            // Chan User gui Role hoac IsActive
+            if (
+                Object.prototype.hasOwnProperty.call(req.body, "Role") ||
+                Object.prototype.hasOwnProperty.call(req.body, "IsActive")
+            ) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Ban khong co quyen thay doi Role hoac IsActive."
+                });
+            }
+
+            user = await userService.updateUserProfile(userId, {
+                FullName,
+                Email,
+                Password
+            });
+
+        } else {
+            // ADMIN: duoc cap nhat ca Role va IsActive
+            const { Role, IsActive } = req.body;
+
+            if (!isValidRole(Role)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Role chi duoc la admin hoac user."
+                });
+            }
+
+            if (typeof IsActive !== "boolean") {
+                return res.status(400).json({
+                    success: false,
+                    message: "IsActive phai la true hoac false."
+                });
+            }
+
+            user = await userService.updateUser(userId, {
+                FullName,
+                Email,
+                Password,
+                Role,
+                IsActive
+            });
+        }
 
         if (!user) {
             return res.status(404).json({
@@ -226,11 +261,12 @@ const updateUser = async (req, res) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Cap nhat nguoi dung thanh cong.",
             data: user
         });
+
     } catch (error) {
         if (isDuplicateEmail(error)) {
             return res.status(409).json({
@@ -241,7 +277,7 @@ const updateUser = async (req, res) => {
 
         console.error("Loi cap nhat user:", error.message);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Khong the cap nhat nguoi dung."
         });
